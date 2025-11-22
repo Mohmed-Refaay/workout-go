@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"backend-go/internals/store"
+	"backend-go/internals/utils"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -42,7 +43,11 @@ func (wh *WorkoutHandler) GetWorkoutById(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	json.NewEncoder(w).Encode(wo)
+	if err := utils.WriteJson(w, http.StatusOK, wo); err != nil {
+		fmt.Println(err)
+		http.Error(w, "Something Went Wrong!", http.StatusInternalServerError)
+		return
+	}
 }
 
 func (wh *WorkoutHandler) UpdateWorkout(w http.ResponseWriter, r *http.Request) {
@@ -94,16 +99,18 @@ func (wh *WorkoutHandler) UpdateWorkout(w http.ResponseWriter, r *http.Request) 
 		existingWo.Entries = updatedWo.Entries
 	}
 
-	updateWo, err := wh.workoutStore.UpdateWorkout(existingWo)
+	newWo, err := wh.workoutStore.UpdateWorkout(existingWo)
 	if err != nil {
 		fmt.Println(err)
 		http.Error(w, "Something Went Wrong!", http.StatusInternalServerError)
 		return
 	}
 
-	w.Header().Add("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(updateWo)
-
+	if err := utils.WriteJson(w, http.StatusCreated, newWo); err != nil {
+		fmt.Println(err)
+		http.Error(w, "Something Went Wrong!", http.StatusInternalServerError)
+		return
+	}
 }
 func (wh *WorkoutHandler) DeleteWorkoutById(w http.ResponseWriter, r *http.Request) {
 	paramWorkoutId := chi.URLParam(r, "id")
@@ -142,6 +149,9 @@ func (wh *WorkoutHandler) CreateWorkout(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	w.Header().Add("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(newWo)
+	if err := utils.WriteJson(w, http.StatusCreated, newWo); err != nil {
+		fmt.Println(err)
+		http.Error(w, "Something Went Wrong!", http.StatusInternalServerError)
+		return
+	}
 }
