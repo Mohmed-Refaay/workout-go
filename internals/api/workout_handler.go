@@ -2,70 +2,61 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
+	"log"
 	"net/http"
-
-	"strconv"
 
 	"backend-go/internals/store"
 	"backend-go/internals/utils"
-
-	"github.com/go-chi/chi/v5"
 )
 
 type WorkoutHandler struct {
 	workoutStore store.WorkoutStore
+	logger       *log.Logger
 }
 
-func NewWorkoutHandler(store store.WorkoutStore) *WorkoutHandler {
+func NewWorkoutHandler(store store.WorkoutStore, logger *log.Logger) *WorkoutHandler {
 	return &WorkoutHandler{
 		workoutStore: store,
+		logger:       logger,
 	}
 }
 
 func (wh *WorkoutHandler) GetWorkoutById(w http.ResponseWriter, r *http.Request) {
-	paramWorkoutId := chi.URLParam(r, "id")
-	if paramWorkoutId == "" {
-		http.NotFound(w, r)
-	}
-
-	workoutId, err := strconv.ParseInt(paramWorkoutId, 10, 62)
+	workoutId, err := utils.GetParamId(r)
 	if err != nil {
-		fmt.Println(err)
-		http.NotFound(w, r)
+		wh.logger.Printf("Error: GetParamId %v\n", err)
+		utils.WriteJson(w, http.StatusBadRequest, utils.Envelope{"error": "id is missing"})
 		return
 	}
 
 	wo, err := wh.workoutStore.GetWorkoutById(workoutId)
 	if err != nil {
-		fmt.Println(err)
-		http.NotFound(w, r)
+		wh.logger.Printf("Error: GetWorkoutById %v\n", err)
+		utils.WriteJson(w, http.StatusNotFound, utils.Envelope{"error": "workout not found"})
 		return
 	}
 
-	if err := utils.WriteJson(w, http.StatusOK, wo); err != nil {
-		fmt.Println(err)
-		http.Error(w, "Something Went Wrong!", http.StatusInternalServerError)
+	if err := utils.WriteJson(w, http.StatusOK, utils.Envelope{
+		"data": wo,
+	}); err != nil {
+		wh.logger.Printf("Error: WriteJson %v\n", err)
+		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{"error": "failed to encode response"})
 		return
 	}
 }
 
 func (wh *WorkoutHandler) UpdateWorkout(w http.ResponseWriter, r *http.Request) {
-	paramWorkoutId := chi.URLParam(r, "id")
-	if paramWorkoutId == "" {
-		http.NotFound(w, r)
-	}
-
-	workoutId, err := strconv.ParseInt(paramWorkoutId, 10, 62)
+	workoutId, err := utils.GetParamId(r)
 	if err != nil {
-		fmt.Println(err)
-		http.NotFound(w, r)
+		wh.logger.Printf("Error: GetParamId %v\n", err)
+		utils.WriteJson(w, http.StatusBadRequest, utils.Envelope{"error": "id is missing"})
 		return
 	}
+
 	existingWo, err := wh.workoutStore.GetWorkoutById(workoutId)
 	if err != nil {
-		fmt.Println(err)
-		http.Error(w, "Something Went Wrong!", http.StatusInternalServerError)
+		wh.logger.Printf("Error: GetWorkoutById %v\n", err)
+		utils.WriteJson(w, http.StatusNotFound, utils.Envelope{"error": "workout not found"})
 		return
 	}
 
@@ -79,7 +70,8 @@ func (wh *WorkoutHandler) UpdateWorkout(w http.ResponseWriter, r *http.Request) 
 
 	updatedWo := &UpdateWorkoutScheme{}
 	if err := json.NewDecoder(r.Body).Decode(updatedWo); err != nil {
-		http.Error(w, "Bad input", http.StatusBadRequest)
+		wh.logger.Printf("Error: Decode request body %v\n", err)
+		utils.WriteJson(w, http.StatusBadRequest, utils.Envelope{"error": "invalid request body"})
 		return
 	}
 
@@ -101,57 +93,57 @@ func (wh *WorkoutHandler) UpdateWorkout(w http.ResponseWriter, r *http.Request) 
 
 	newWo, err := wh.workoutStore.UpdateWorkout(existingWo)
 	if err != nil {
-		fmt.Println(err)
-		http.Error(w, "Something Went Wrong!", http.StatusInternalServerError)
+		wh.logger.Printf("Error: UpdateWorkout %v\n", err)
+		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{"error": "failed to update workout"})
 		return
 	}
 
-	if err := utils.WriteJson(w, http.StatusCreated, newWo); err != nil {
-		fmt.Println(err)
-		http.Error(w, "Something Went Wrong!", http.StatusInternalServerError)
+	if err := utils.WriteJson(w, http.StatusOK, utils.Envelope{"data": newWo}); err != nil {
+		wh.logger.Printf("Error: WriteJson %v\n", err)
+		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{"error": "failed to encode response"})
 		return
 	}
 }
 func (wh *WorkoutHandler) DeleteWorkoutById(w http.ResponseWriter, r *http.Request) {
-	paramWorkoutId := chi.URLParam(r, "id")
-	if paramWorkoutId == "" {
-		http.NotFound(w, r)
-	}
-
-	workoutId, err := strconv.ParseInt(paramWorkoutId, 10, 62)
+	workoutId, err := utils.GetParamId(r)
 	if err != nil {
-		fmt.Println(err)
-		http.NotFound(w, r)
+		wh.logger.Printf("Error: GetParamId %v\n", err)
+		utils.WriteJson(w, http.StatusBadRequest, utils.Envelope{"error": "id is missing"})
 		return
 	}
 
 	err = wh.workoutStore.DeleteWorkoutById(workoutId)
 	if err != nil {
-		http.NotFound(w, r)
+		wh.logger.Printf("Error: DeleteWorkoutById %v\n", err)
+		utils.WriteJson(w, http.StatusNotFound, utils.Envelope{"error": "workout not found"})
 		return
 	}
 
-	fmt.Fprint(w, "Deleted correctly")
+	if err := utils.WriteJson(w, http.StatusOK, utils.Envelope{"message": "workout deleted successfully"}); err != nil {
+		wh.logger.Printf("Error: WriteJson %v\n", err)
+		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{"error": "failed to encode response"})
+		return
+	}
 }
 
 func (wh *WorkoutHandler) CreateWorkout(w http.ResponseWriter, r *http.Request) {
 	var wo store.Workout
 	if err := json.NewDecoder(r.Body).Decode(&wo); err != nil {
-		fmt.Println(err)
-		http.Error(w, "Wrong data type", http.StatusInternalServerError)
+		wh.logger.Printf("Error: Decode request body %v\n", err)
+		utils.WriteJson(w, http.StatusBadRequest, utils.Envelope{"error": "invalid request body"})
 		return
 	}
 
 	newWo, err := wh.workoutStore.CreateWorkout(&wo)
 	if err != nil {
-		fmt.Println(err)
-		http.Error(w, "Failed to add data", http.StatusInternalServerError)
+		wh.logger.Printf("Error: CreateWorkout %v\n", err)
+		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{"error": "failed to create workout"})
 		return
 	}
 
-	if err := utils.WriteJson(w, http.StatusCreated, newWo); err != nil {
-		fmt.Println(err)
-		http.Error(w, "Something Went Wrong!", http.StatusInternalServerError)
+	if err := utils.WriteJson(w, http.StatusCreated, utils.Envelope{"data": newWo}); err != nil {
+		wh.logger.Printf("Error: WriteJson %v\n", err)
+		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{"error": "failed to encode response"})
 		return
 	}
 }
