@@ -1,6 +1,10 @@
 package store
 
-import "database/sql"
+import (
+	"database/sql"
+	"errors"
+	"strings"
+)
 
 type User struct {
 	ID        string `json:"id"`
@@ -26,14 +30,26 @@ type UserStore interface {
 	GetUserByUsername(username string) (*User, error)
 }
 
+var ErrUsernameExisted = errors.New("username already exists")
+var ErrEmailExisted = errors.New("email already exists")
+
 func (pgStore *PostgresUserStore) CreateUser(user *User) error {
 	query := `
 	INSERT INTO users (username, email, password_hash) 
 	VALUES ($1, $2, $3)
 	RETURNING id, created_at, updated_at
 	`
+
 	err := pgStore.db.QueryRow(query, user.Username, user.Email, user.Password).Scan(&user.ID, &user.CreatedAt, &user.UpdatedAt)
 	if err != nil {
+		if strings.Contains(err.Error(), "23505") {
+			if strings.Contains(err.Error(), "users_username_key") {
+				return ErrUsernameExisted
+			}
+			if strings.Contains(err.Error(), "users_email_key") {
+				return ErrEmailExisted
+			}
+		}
 		return err
 	}
 

@@ -71,19 +71,6 @@ func (uh *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	existingUser, err := uh.userStore.GetUserByUsername(userRequest.Username)
-	if err != nil {
-		uh.logger.Printf("Error: GetUserByUsername %v\n", err)
-		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{"error": "Internal server error"})
-		return
-	}
-	if existingUser != nil {
-		uh.logger.Println("Error: GetUserByUsername Already Exist")
-		utils.WriteJson(w, http.StatusBadRequest, utils.Envelope{"error": "User is already exist"})
-		return
-	}
-
-	uh.logger.Println("Hashing.....")
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(userRequest.Password), bcrypt.DefaultCost)
 	if err != nil {
 		uh.logger.Printf("Error: Bcrypting %v\n", err)
@@ -97,9 +84,18 @@ func (uh *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		Password: string(hashedPassword),
 	}
 
-	uh.logger.Println("Creatinggg.....")
 	err = uh.userStore.CreateUser(user)
 	if err != nil {
+		if err == store.ErrEmailExisted {
+			uh.logger.Printf("Error: %v\n", err)
+			utils.WriteJson(w, http.StatusBadRequest, utils.Envelope{"error": "Email Address is already exist"})
+			return
+		}
+		if err == store.ErrUsernameExisted {
+			uh.logger.Printf("Error: %v\n", err)
+			utils.WriteJson(w, http.StatusBadRequest, utils.Envelope{"error": "Username is already exist"})
+			return
+		}
 		uh.logger.Printf("Error: CreateUser Store%v\n", err)
 		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{"error": "Internal server error"})
 		return
