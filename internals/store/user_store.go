@@ -7,7 +7,7 @@ import (
 )
 
 type User struct {
-	ID        string `json:"id"`
+	ID        int    `json:"id"`
 	Username  string `json:"username"`
 	Email     string `json:"email"`
 	Password  string `json:"-"`
@@ -57,7 +57,9 @@ func (pgStore *PostgresUserStore) CreateUser(user *User) error {
 }
 
 func (pgStore *PostgresUserStore) GetUserByUsername(username string) (*User, error) {
-	user := &User{}
+	user := &User{
+		Username: username,
+	}
 	query := `
 	SELECT id, email, password_hash, created_at, updated_at
 	FROM users
