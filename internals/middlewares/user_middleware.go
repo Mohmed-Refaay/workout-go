@@ -5,7 +5,6 @@ import (
 	"backend-go/internals/tokens"
 	"backend-go/internals/utils"
 	"context"
-	"fmt"
 	"net/http"
 	"strings"
 )
@@ -58,7 +57,23 @@ func (um *UserMiddleware) Authenticate(next http.Handler) http.Handler {
 			return
 		}
 
-		fmt.Println(user)
+		r = SetUser(r, user)
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (um *UserMiddleware) RequireUser(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user, err := GetUser(r)
+
+		if err != nil {
+			utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{"error": "internal server error"})
+			return
+		}
+		if user.IsAnonymous() {
+			utils.WriteJson(w, http.StatusUnauthorized, utils.Envelope{"error": "you have to be logged in"})
+			return
+		}
 
 		r = SetUser(r, user)
 		next.ServeHTTP(w, r)
