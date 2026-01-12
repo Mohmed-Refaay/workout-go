@@ -1,9 +1,11 @@
 package store
 
 import (
+	"crypto/sha256"
 	"database/sql"
 	"errors"
 	"strings"
+	"time"
 )
 
 type User struct {
@@ -13,6 +15,12 @@ type User struct {
 	Password  string `json:"-"`
 	CreatedAt string `json:"created_at"`
 	UpdatedAt string `json:"updated_at"`
+}
+
+var AnonymousUser = &User{}
+
+func (u *User) IsAnonymous() bool {
+	return u == AnonymousUser
 }
 
 type PostgresUserStore struct {
@@ -28,6 +36,7 @@ func NewPostgresUserStore(db *sql.DB) *PostgresUserStore {
 type UserStore interface {
 	CreateUser(user *User) error
 	GetUserByUsername(username string) (*User, error)
+	GetUserFromToken(token, scope string) (*User, error)
 }
 
 var ErrUsernameExisted = errors.New("username already exists")
@@ -70,6 +79,30 @@ func (pgStore *PostgresUserStore) GetUserByUsername(username string) (*User, err
 		return nil, nil
 	}
 
+	if err != nil {
+		return nil, err
+	}
+
+	return user, nil
+}
+
+func (pgStore *PostgresUserStore) GetUserFromToken(token, scope string) (*User, error) {
+	hash := sha256.Sum256([]byte(token))
+
+	user := &User{}
+
+	query := `
+	SELECT u.id, u.email, u.username, u.password_hash, u.created_at, u.updated_at
+	FROM users u
+	INNER JOIN tokens t
+	ON u.id = t.user_id
+	WHERE t.hash = $1 AND t.scope = $2 AND expiry > $3
+	`
+
+	err := pgStore.db.QueryRow(query, hash[:], scope, time.Now()).Scan(&user.ID, &user.Email, &user.Username, &user.Password, &user.CreatedAt, &user.UpdatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, err
 	}

@@ -2,6 +2,7 @@ package app
 
 import (
 	"backend-go/internals/api"
+	"backend-go/internals/middlewares"
 	"backend-go/internals/store"
 	"backend-go/migrations"
 	"database/sql"
@@ -15,6 +16,7 @@ type Application struct {
 	WorkoutHandler *api.WorkoutHandler
 	UserHandler    *api.UserHandler
 	TokenHandler   *api.TokenHandler
+	UserMiddleware *middlewares.UserMiddleware
 	DB             *sql.DB
 }
 
@@ -41,11 +43,15 @@ func NewApplication() (*Application, error) {
 	userHandler := api.NewUserHandler(userStore, logger)
 	tokenHandler := api.NewTokenHandler(userStore, tokenStore, logger)
 
+	// middlewares
+	userMiddleware := &middlewares.UserMiddleware{UserStore: userStore}
+
 	app := &Application{
 		Logger:         logger,
 		WorkoutHandler: workoutHandler,
 		UserHandler:    userHandler,
 		TokenHandler:   tokenHandler,
+		UserMiddleware: userMiddleware,
 		DB:             pgDB,
 	}
 

@@ -2,6 +2,7 @@ package api
 
 import (
 	"backend-go/internals/store"
+	"backend-go/internals/tokens"
 	"backend-go/internals/utils"
 	"encoding/json"
 	"log"
@@ -9,10 +10,6 @@ import (
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
-)
-
-const (
-	AuthenticationScope = "authentication"
 )
 
 type TokenHandler struct {
@@ -24,6 +21,11 @@ type TokenHandler struct {
 type authenticateRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
+}
+
+type getUserFromTokenRequest struct {
+	Token string `json:"token"`
+	Scope string `json:"scope"`
 }
 
 func NewTokenHandler(userStore store.UserStore, tokenStore store.TokenStore, logger *log.Logger) *TokenHandler {
@@ -61,12 +63,12 @@ func (th *TokenHandler) Authenticate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user_token, err := th.tokenStore.CreateNewToken(user.ID, 24*time.Hour, AuthenticationScope)
+	user_token, err := th.tokenStore.CreateNewToken(user.ID, 24*time.Hour, tokens.ScopeAuth)
 	if err != nil {
 		th.logger.Printf("Error: Authentication CreateNewToken %v", err)
 		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{"error": "Internal Server Error!"})
 		return
 	}
 
-	utils.WriteJson(w, http.StatusAccepted, utils.Envelope{"token": user_token.Plaintext, "expiry": user_token.Expiry})
+	utils.WriteJson(w, http.StatusAccepted, utils.Envelope{"auth_token": user_token})
 }
