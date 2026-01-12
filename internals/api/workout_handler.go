@@ -1,10 +1,13 @@
 package api
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 
+	"backend-go/internals/middlewares"
 	"backend-go/internals/store"
 	"backend-go/internals/utils"
 )
@@ -112,6 +115,25 @@ func (wh *WorkoutHandler) DeleteWorkoutById(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	workout, err := wh.workoutStore.GetWorkoutById(workoutId)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			wh.logger.Printf("Error: DeleteWorkoutById %v\n", err)
+			utils.WriteJson(w, http.StatusNotFound, utils.Envelope{"error": "workout not found!"})
+			return
+		}
+		wh.logger.Printf("Error: DeleteWorkoutById %v\n", err)
+		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{"error": "Internal server error"})
+		return
+	}
+
+	user, _ := middlewares.GetUser(r)
+	if user.ID != workout.UserId {
+		wh.logger.Println("Error: DeleteWorkoutById not the owner of the workout")
+		utils.WriteJson(w, http.StatusNotFound, utils.Envelope{"error": "workout not found!"})
+		return
+	}
+
 	err = wh.workoutStore.DeleteWorkoutById(workoutId)
 	if err != nil {
 		wh.logger.Printf("Error: DeleteWorkoutById %v\n", err)
@@ -133,6 +155,9 @@ func (wh *WorkoutHandler) CreateWorkout(w http.ResponseWriter, r *http.Request) 
 		utils.WriteJson(w, http.StatusBadRequest, utils.Envelope{"error": "invalid request body"})
 		return
 	}
+
+	user, _ := middlewares.GetUser(r)
+	wo.UserId = user.ID
 
 	newWo, err := wh.workoutStore.CreateWorkout(&wo)
 	if err != nil {

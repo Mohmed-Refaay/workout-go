@@ -8,6 +8,7 @@ import (
 type Workout struct {
 	ID              int64          `json:"id"`
 	Title           string         `json:"title"`
+	UserId          int            `json:"user_id"`
 	Description     string         `json:"description"`
 	DurationMinutes int            `json:"duration_minutes"`
 	CaloriesBurned  int            `json:"calories_burned"`
@@ -51,11 +52,11 @@ func (pgStore *PostgresWorkoutStore) CreateWorkout(wo *Workout) (*Workout, error
 	defer tx.Rollback()
 
 	query :=
-		`INSERT INTO workouts (title, description, duration_minutes, calories_burned)
-	VALUES ($1, $2, $3, $4)
+		`INSERT INTO workouts (title, description, user_id, duration_minutes, calories_burned)
+	VALUES ($1, $2, $3, $4, $5)
 	RETURNING id
 	`
-	err = tx.QueryRow(query, wo.Title, wo.Description, wo.DurationMinutes, wo.CaloriesBurned).Scan(&wo.ID)
+	err = tx.QueryRow(query, wo.Title, wo.Description, wo.UserId, wo.DurationMinutes, wo.CaloriesBurned).Scan(&wo.ID)
 	if err != nil {
 		return nil, fmt.Errorf("CreateWorkout Workout: %w", err)
 	}
@@ -94,10 +95,10 @@ func (pgStore *PostgresWorkoutStore) CreateWorkout(wo *Workout) (*Workout, error
 }
 
 func (pgStore *PostgresWorkoutStore) GetWorkoutById(id int64) (*Workout, error) {
-	query := "SELECT id, title, description, duration_minutes, calories_burned FROM workouts WHERE id=$1"
+	query := "SELECT id, title, user_id, description, duration_minutes, calories_burned FROM workouts WHERE id=$1"
 
 	wo := Workout{}
-	err := pgStore.db.QueryRow(query, id).Scan(&wo.ID, &wo.Title, &wo.Description, &wo.DurationMinutes, &wo.CaloriesBurned)
+	err := pgStore.db.QueryRow(query, id).Scan(&wo.ID, &wo.Title, &wo.UserId, &wo.Description, &wo.DurationMinutes, &wo.CaloriesBurned)
 	if err != nil {
 		return nil, fmt.Errorf("GetWorkoutById QueryRow: %w", err)
 	}
